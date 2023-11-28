@@ -1,12 +1,21 @@
 package ruleengine
 
+import (
+	"fmt"
+
+	validatecondition "github.com/prajakta-scalent/rule-engine/pkg/rule-engine/validate-condition"
+)
+
 type Rule struct {
-	IsMandatory  bool
-	Name         string
-	Condition    string
-	MatchValue   interface{}
-	MatchAgainst interface{}
-	Callback     interface{}
+	IsMandatory bool
+	Name        string
+	Condition   string
+	MatchValue  interface{}
+}
+
+type RuleInput struct {
+	RuleName string
+	Value    interface{}
 }
 
 type RuleGroup struct {
@@ -17,7 +26,7 @@ type RuleGroup struct {
 
 type RuleEngine interface {
 	RegisterGroup()
-	Execute()
+	Execute(data interface{})
 	Save()
 }
 
@@ -31,8 +40,41 @@ func (r *RuleGroup) RegisterGroup(name string, rules []Rule, executeConcurrently
 	r.ExecuteConcurrently = executeConcurrently
 }
 
-func (r *RuleGroup) Execute() {
+func (r *RuleGroup) Execute(data []RuleInput) {
+	if r.ExecuteConcurrently {
+		r.ExecuteRulesConcurrently(data)
+	} else {
+		r.ExecuteRulesSequentially(data)
+	}
+}
 
+func (r *RuleGroup) ExecuteRulesConcurrently(data []RuleInput) {
+	// for _, rule := range r.Rules {
+
+	// }
+}
+
+func (r *RuleGroup) ExecuteRulesSequentially(data []RuleInput) {
+	for _, rule := range r.Rules {
+		if rule.Condition != "" {
+			dataValue := getRuleData(rule.Name, data)
+			fmt.Println(rule.Name, dataValue)
+			// if dataValue == nil {
+			// 	fmt.Println(rule.Name, dataValue)
+			// }
+			result := validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
+			fmt.Println("rule response", result)
+		}
+	}
+}
+
+func getRuleData(name string, data []RuleInput) interface{} {
+	for _, dataVal := range data {
+		if name == dataVal.RuleName {
+			return dataVal
+		}
+	}
+	return nil
 }
 
 func (r *RuleGroup) Save() {
