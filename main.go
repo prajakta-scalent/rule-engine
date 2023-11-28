@@ -38,28 +38,36 @@ func main() {
 		},
 	}
 
-	ruleInput := []ruleengine.RuleInput{
-		{
-			RuleName: "AgeShouldBeMoreThan",
-			Value:    10,
-		},
-		{
-			RuleName: "NameEqualTo",
-			Value:    "prajakta",
-		},
-		{
-			RuleName: "BalanceMoreThan",
-			Value:    0.00,
-		},
-		{
-			RuleName: "APICallCheckAgeAllowed",
-			Value:    user,
+	ruleGroup := ruleengine.RuleGroup{
+		Name:                "userRulesGroup",
+		Rules:               rules,
+		ExecuteConcurrently: false,
+	}
+
+	ruleInput := map[string][]ruleengine.RuleInput{
+		"userRulesGroup": {
+			{
+				RuleName: "AgeShouldBeMoreThan",
+				Value:    10,
+			},
+			{
+				RuleName: "NameEqualTo",
+				Value:    "prajakta",
+			},
+			{
+				RuleName: "BalanceMoreThan",
+				Value:    0.00,
+			},
+			{
+				RuleName: "APICallCheckAgeAllowed",
+				Value:    user,
+			},
 		},
 	}
 
-	ruleGroup := ruleengine.New()
-	ruleGroup.RegisterGroup("UserCondition", rules, false)
-	ruleGroup.Execute(ruleInput)
+	ruleEngine := ruleengine.New()
+	ruleEngine.RegisterGroup(ruleGroup)
+	ruleEngine.Execute(ruleInput)
 }
 
 type User struct {
