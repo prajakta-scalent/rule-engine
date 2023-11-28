@@ -2,9 +2,18 @@ package ruleengine
 
 import (
 	"fmt"
+	"reflect"
 
 	validatecondition "github.com/prajakta-scalent/rule-engine/pkg/rule-engine/validate-condition"
 )
+
+const CALLBACK_FUNCTION_NAME = "RuleCallback"
+
+type Result struct {
+	Rule       Rule
+	InputValue interface{}
+	Outcome    bool
+}
 
 type Rule struct {
 	IsMandatory bool
@@ -27,7 +36,11 @@ type RuleGroup struct {
 type RuleEngine interface {
 	RegisterGroup()
 	Execute(data interface{})
-	Save()
+}
+
+// TO DO: need to implement tha save functionality
+type RuleExecutionResult interface {
+	Save(result []Result) error
 }
 
 func New() *RuleGroup {
@@ -55,28 +68,34 @@ func (r *RuleGroup) ExecuteRulesConcurrently(data []RuleInput) {
 }
 
 func (r *RuleGroup) ExecuteRulesSequentially(data []RuleInput) {
+	var result []Result
+
 	for _, rule := range r.Rules {
-		if rule.Condition != "" {
-			dataValue := getRuleData(rule.Name, data)
-			fmt.Println(rule.Name, dataValue)
-			// if dataValue == nil {
-			// 	fmt.Println(rule.Name, dataValue)
-			// }
-			result := validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
-			fmt.Println("rule response", result)
+		var response bool
+		dataValue := getRuleData(rule.Name, data)
+
+		if rule.Condition == "callback" {
+			callbackMethod := reflect.ValueOf(dataValue).MethodByName(CALLBACK_FUNCTION_NAME)
+			callbackRes := callbackMethod.Call(nil)[0]
+			response = callbackRes.Interface().(bool)
+		} else {
+			response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
 		}
+		result = append(result, Result{
+			Rule:       rule,
+			InputValue: dataValue,
+			Outcome:    response,
+		})
 	}
+	//TO DO need to create interface to save result
+	fmt.Println("Final Result", result)
 }
 
 func getRuleData(name string, data []RuleInput) interface{} {
 	for _, dataVal := range data {
 		if name == dataVal.RuleName {
-			return dataVal
+			return dataVal.Value
 		}
 	}
 	return nil
-}
-
-func (r *RuleGroup) Save() {
-
 }
