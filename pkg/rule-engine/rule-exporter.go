@@ -1,5 +1,5 @@
 package ruleengine
 
 type ResultExporter interface {
-	Save(result []RuleGroupResult) error
+	Save(executionID string, result []RuleGroupResult) error
 }

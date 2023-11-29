@@ -29,7 +29,7 @@ type RuleResult struct {
 }
 
 type RuleGroupResult struct {
-	ExecutionID string
 	Name        string
+	Status      bool
 	RuleResults []RuleResult
 }

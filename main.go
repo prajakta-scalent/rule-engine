@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+
+	dbexporter "github.com/prajakta-scalent/rule-engine/pkg/db-exporter"
 	ruleengine "github.com/prajakta-scalent/rule-engine/pkg/rule-engine"
 	"github.com/prajakta-scalent/rule-engine/services"
 )
@@ -88,10 +91,15 @@ func main() {
 		},
 	}
 
-	consoleExporter := ruleengine.ConsoleExporter{}
+	dbExporter := dbexporter.DBExporter{}
 
-	ruleEngine := ruleengine.New(consoleExporter)
+	ruleEngine, err := ruleengine.New(dbExporter)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 	ruleEngine.RegisterGroup(ruleGroup)
 	ruleEngine.RegisterGroup(ruleGroup2)
-	ruleEngine.Execute(ruleInput)
+	executionID, result, err := ruleEngine.Execute(ruleInput)
+	fmt.Println("\n\n###########################################", executionID, result, err)
 }

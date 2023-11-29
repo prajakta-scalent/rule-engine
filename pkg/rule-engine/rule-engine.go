@@ -1,6 +1,7 @@
 package ruleengine
 
 import (
+	"errors"
 	"reflect"
 	"sync"
 
@@ -13,7 +14,11 @@ const CONDITION_CALLBACK = "callback"
 
 type RuleEngine interface {
 	RegisterGroup(name string, rules []Rule, executeConcurrently bool)
-	Execute(data interface{})
+	Execute(data interface{}) (bool, error)
+}
+
+type FailedRules struct {
+	Rules []RuleResult
 }
 
 type RuleEngineImpl struct {
@@ -21,39 +26,54 @@ type RuleEngineImpl struct {
 	resultExporter ResultExporter
 }
 
-func New(ruleExporter ResultExporter) *RuleEngineImpl {
+func New(ruleExporter ResultExporter) (*RuleEngineImpl, error) {
+	if ruleExporter == nil {
+		return nil, errors.New("rule exporter dependency not met")
+	}
 	return &RuleEngineImpl{
 		resultExporter: ruleExporter,
-	}
+	}, nil
 }
 
 func (r *RuleEngineImpl) RegisterGroup(ruleGroup RuleGroup) {
 	r.ruleGroups = append(r.ruleGroups, ruleGroup)
 }
 
-func (r *RuleEngineImpl) Execute(data map[string][]Input) {
-	result := make([]RuleGroupResult, 0)
-	executionID := uuid.NewString()
+func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, result []RuleGroupResult, err error) {
+	executionID = uuid.NewString()
+
 	for _, ruleGroup := range r.ruleGroups {
+		var pass bool
 		if ruleGroup.ExecuteConcurrently {
 			ruleResults := r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
+			for _, ruleResult := range ruleResults {
+				if ruleResult.Error != nil && ruleResult.Outcome {
+					pass = true
+				}
+			}
 			result = append(result, RuleGroupResult{
-				ExecutionID: executionID,
 				Name:        ruleGroup.Name,
 				RuleResults: ruleResults,
+				Status:      pass,
 			})
 		} else {
 			ruleResults := r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
+			for _, ruleResult := range ruleResults {
+				if ruleResult.Error != nil && ruleResult.Outcome {
+					pass = true
+				}
+			}
 			result = append(result, RuleGroupResult{
-				ExecutionID: executionID,
 				Name:        ruleGroup.Name,
 				RuleResults: ruleResults,
+				Status:      pass,
 			})
 		}
 	}
-	// TODO: handle error
-	_ = r.resultExporter.Save(result)
 
+	// Log error
+	err = r.resultExporter.Save(executionID, result)
+	return executionID, result, err
 }
 
 func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
