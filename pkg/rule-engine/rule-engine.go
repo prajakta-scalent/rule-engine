@@ -21,42 +21,60 @@ type FailedRules struct {
 	Rules []RuleResult
 }
 
-type RuleEngineImpl struct {
+type ruleEngineImpl struct {
 	ruleGroups     []RuleGroup
 	resultExporter ResultExporter
 }
 
-func New(ruleExporter ResultExporter) (*RuleEngineImpl, error) {
+func New(ruleExporter ResultExporter) (*ruleEngineImpl, error) {
 	if ruleExporter == nil {
-		return nil, errors.New("rule exporter dependency not met")
+		return nil, ErrRuleExporterEmpty
 	}
-	return &RuleEngineImpl{
+	return &ruleEngineImpl{
 		resultExporter: ruleExporter,
 	}, nil
 }
 
-func (r *RuleEngineImpl) RegisterGroup(ruleGroup RuleGroup) {
+func (r *ruleEngineImpl) RegisterGroup(ruleGroup RuleGroup) error {
+	if ruleGroup.Name == "" {
+		return ErrRuleGroupNameEmpty
+	} else if len(ruleGroup.Rules) == 0 {
+		return ErrRulesEmpty
+	}
+
 	r.ruleGroups = append(r.ruleGroups, ruleGroup)
+
+	return nil
 }
 
-func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, result []RuleGroupResult, err error) {
+func (r *ruleEngineImpl) Execute(data map[string][]Input) (executionID string, result []RuleGroupResult, err error) {
 	executionID = uuid.NewString()
 
+	if data == nil {
+		return executionID, nil, ErrRuleInputDataEmpty
+	}
+
 	for _, ruleGroup := range r.ruleGroups {
-		if len(ruleGroup.Rules) != len(data[ruleGroup.Name]) {
-			return executionID, nil, errors.New("rules and input data not matching for group:" + ruleGroup.Name)
+		inputData := data[ruleGroup.Name]
+
+		if inputData == nil {
+			return executionID, nil, ErrRuleInputValueEmpty
 		}
+		if len(ruleGroup.Rules) != len(inputData) {
+			return executionID, nil, ErrRuleInputLengthNotEqual
+		}
+
 		pass := true
 		var ruleResults []RuleResult
 		if ruleGroup.ExecuteConcurrently {
-			ruleResults = r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
+			ruleResults = r.ExecuteRulesConcurrently(ruleGroup, inputData)
 			for _, ruleResult := range ruleResults {
 				if !ruleResult.Outcome && ruleResult.IsMandatory {
 					pass = false
 				}
 			}
 		} else {
-			ruleResults = r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
+			ruleResults = r.ExecuteRulesSequentially(ruleGroup, inputData)
 			for _, ruleResult := range ruleResults {
 				if !ruleResult.Outcome && ruleResult.IsMandatory {
 					pass = false
@@ -75,7 +93,7 @@ func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, r
 	return executionID, result, err
 }
 
-func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
+func (r *ruleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
 	var wg sync.WaitGroup
 	resultCh := make(chan RuleResult)
 
@@ -140,7 +158,7 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []In
 	return
 }
 
-func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
+func (r *ruleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
 	for _, rule := range ruleGroup.Rules {
 		var response bool
 		var err error
