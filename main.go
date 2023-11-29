@@ -17,9 +17,9 @@ func main() {
 	rules := []ruleengine.Rule{
 		{
 			Name:        "AgeShouldBeMoreThan",
-			Condition:   "lte",
+			Condition:   "gte",
 			MatchValue:  18,
-			IsMandatory: true,
+			IsMandatory: false,
 		},
 		{
 			Name:        "NameEqualTo",
@@ -29,18 +29,19 @@ func main() {
 		},
 		{
 			Name:        "BalanceMoreThan",
-			Condition:   "gt",
+			Condition:   "gte",
 			MatchValue:  0.0,
-			IsMandatory: true,
-		},
-		{
-			Name:        "APICallCheckAgeAllowed",
-			Condition:   "callback",
 			IsMandatory: true,
 		},
 	}
 
 	rules1 := []ruleengine.Rule{
+		{
+			Name:        "AgeShouldBeMoreThan",
+			Condition:   "gte",
+			MatchValue:  18,
+			IsMandatory: false,
+		},
 		{
 			Name:        "APICallCheckAgeAllowed",
 			Condition:   "callback",
@@ -68,7 +69,7 @@ func main() {
 			},
 			{
 				RuleName: "NameEqualTo",
-				Value:    "john1",
+				Value:    "john",
 			},
 			{
 				RuleName: "BalanceMoreThan",

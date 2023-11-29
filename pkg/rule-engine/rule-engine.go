@@ -43,32 +43,31 @@ func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, r
 	executionID = uuid.NewString()
 
 	for _, ruleGroup := range r.ruleGroups {
-		pass := true
-		if ruleGroup.ExecuteConcurrently {
-			ruleResults := r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
-			for _, ruleResult := range ruleResults {
-				if !ruleResult.Outcome && ruleResult.IsMandatory {
-					pass = false
-				}
-			}
-			result = append(result, RuleGroupResult{
-				Name:        ruleGroup.Name,
-				RuleResults: ruleResults,
-				Status:      pass,
-			})
-		} else {
-			ruleResults := r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
-			for _, ruleResult := range ruleResults {
-				if !ruleResult.Outcome && ruleResult.IsMandatory {
-					pass = false
-				}
-			}
-			result = append(result, RuleGroupResult{
-				Name:        ruleGroup.Name,
-				RuleResults: ruleResults,
-				Status:      pass,
-			})
+		if len(ruleGroup.Rules) != len(data[ruleGroup.Name]) {
+			return executionID, nil, errors.New("rules and input data not matching for group:" + ruleGroup.Name)
 		}
+		pass := true
+		var ruleResults []RuleResult
+		if ruleGroup.ExecuteConcurrently {
+			ruleResults = r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
+			for _, ruleResult := range ruleResults {
+				if !ruleResult.Outcome && ruleResult.IsMandatory {
+					pass = false
+				}
+			}
+		} else {
+			ruleResults = r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
+			for _, ruleResult := range ruleResults {
+				if !ruleResult.Outcome && ruleResult.IsMandatory {
+					pass = false
+				}
+			}
+		}
+		result = append(result, RuleGroupResult{
+			Name:        ruleGroup.Name,
+			RuleResults: ruleResults,
+			Status:      pass,
+		})
 	}
 
 	// Log error
