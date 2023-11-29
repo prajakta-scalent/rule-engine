@@ -1,10 +1,10 @@
 package ruleengine
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 
+	"github.com/google/uuid"
 	validatecondition "github.com/prajakta-scalent/rule-engine/pkg/rule-engine/validate-condition"
 )
 
@@ -16,13 +16,9 @@ type RuleEngine interface {
 	Execute(data interface{})
 }
 
-// TO DO: need to implement tha save functionality
-type RuleExecutionResult interface {
-	Save(result []Result) error
-}
-
 type RuleEngineImpl struct {
-	ruleGroups []RuleGroup
+	ruleGroups     []RuleGroup
+	resultExporter ResultExporter
 }
 
 func New() *RuleEngineImpl {
@@ -33,22 +29,34 @@ func (r *RuleEngineImpl) RegisterGroup(ruleGroup RuleGroup) {
 	r.ruleGroups = append(r.ruleGroups, ruleGroup)
 }
 
-func (r *RuleEngineImpl) Execute(data map[string][]RuleInput) {
-	result := make([]Result, 0)
-
+func (r *RuleEngineImpl) Execute(data map[string][]Input) {
+	result := make([]RuleGroupResult, 0)
+	executionID := uuid.NewString()
 	for _, ruleGroup := range r.ruleGroups {
 		if ruleGroup.ExecuteConcurrently {
-			result = append(result, r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])...)
+			ruleResults := r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
+			result = append(result, RuleGroupResult{
+				ExecutionID: executionID,
+				Name:        ruleGroup.Name,
+				RuleResults: ruleResults,
+			})
 		} else {
-			result = append(result, r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])...)
+			ruleResults := r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
+			result = append(result, RuleGroupResult{
+				ExecutionID: executionID,
+				Name:        ruleGroup.Name,
+				RuleResults: ruleResults,
+			})
 		}
 	}
-	fmt.Println(result)
+	// TODO: handle error
+	_ = r.resultExporter.Save(result)
+
 }
 
-func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []RuleInput) (result []Result) {
+func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
 	var wg sync.WaitGroup
-	resultCh := make(chan Result)
+	resultCh := make(chan RuleResult)
 
 	for _, rule := range ruleGroup.Rules {
 		var response bool
@@ -63,10 +71,13 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Ru
 			} else {
 				response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
 			}
-			resultCh <- Result{
-				Rule:       rule,
-				InputValue: dataValue,
-				Outcome:    response,
+			resultCh <- RuleResult{
+				Name:        rule.Name,
+				Condition:   rule.Condition,
+				IsMandatory: rule.IsMandatory,
+				MatchValue:  rule.MatchValue,
+				Value:       dataValue,
+				Outcome:     response,
 			}
 		}(rule)
 	}
@@ -83,7 +94,7 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []Ru
 	return
 }
 
-func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []RuleInput) (result []Result) {
+func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
 	for _, rule := range ruleGroup.Rules {
 		var response bool
 		dataValue := getRuleData(rule.Name, data)
@@ -95,16 +106,20 @@ func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Ru
 		} else {
 			response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
 		}
-		result = append(result, Result{
-			Rule:       rule,
-			InputValue: dataValue,
-			Outcome:    response,
+		// TODO: Need to save error if any comes during execution
+		result = append(result, RuleResult{
+			Name:        rule.Name,
+			Condition:   rule.Condition,
+			IsMandatory: rule.IsMandatory,
+			MatchValue:  rule.MatchValue,
+			Value:       dataValue,
+			Outcome:     response,
 		})
 	}
-	return
+	return result
 }
 
-func getRuleData(name string, data []RuleInput) interface{} {
+func getRuleData(name string, data []Input) interface{} {
 	for _, dataVal := range data {
 		if name == dataVal.RuleName {
 			return dataVal.Value

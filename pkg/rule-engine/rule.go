@@ -1,11 +1,5 @@
 package ruleengine
 
-type Result struct {
-	Rule       Rule
-	InputValue interface{}
-	Outcome    bool
-}
-
 type Rule struct {
 	IsMandatory bool
 	Name        string
@@ -13,13 +7,29 @@ type Rule struct {
 	MatchValue  interface{}
 }
 
-type RuleInput struct {
-	RuleName string
-	Value    interface{}
-}
-
 type RuleGroup struct {
 	Name                string
 	Rules               []Rule
 	ExecuteConcurrently bool
+}
+
+type Input struct {
+	RuleName string
+	Value    interface{}
+}
+
+type RuleResult struct {
+	Name        string
+	Condition   string
+	IsMandatory bool
+	MatchValue  interface{}
+	Value       interface{}
+	Outcome     bool
+	Error       error
+}
+
+type RuleGroupResult struct {
+	ExecutionID string
+	Name        string
+	RuleResults []RuleResult
 }
