@@ -22,7 +22,7 @@ func main() {
 		{
 			Name:        "NameEqualTo",
 			Condition:   "eq",
-			MatchValue:  "prajakta",
+			MatchValue:  "john",
 			IsMandatory: true,
 		},
 		{
@@ -48,11 +48,11 @@ func main() {
 		"userRulesGroup": {
 			{
 				RuleName: "AgeShouldBeMoreThan",
-				Value:    10,
+				Value:    20,
 			},
 			{
 				RuleName: "NameEqualTo",
-				Value:    "prajakta",
+				Value:    "john",
 			},
 			{
 				RuleName: "BalanceMoreThan",
