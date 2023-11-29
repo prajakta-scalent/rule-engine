@@ -21,8 +21,10 @@ type RuleEngineImpl struct {
 	resultExporter ResultExporter
 }
 
-func New() *RuleEngineImpl {
-	return &RuleEngineImpl{}
+func New(ruleExporter ResultExporter) *RuleEngineImpl {
+	return &RuleEngineImpl{
+		resultExporter: ruleExporter,
+	}
 }
 
 func (r *RuleEngineImpl) RegisterGroup(ruleGroup RuleGroup) {

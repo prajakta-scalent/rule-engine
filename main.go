@@ -49,7 +49,7 @@ func main() {
 		ExecuteConcurrently: true,
 	}
 
-	ruleInput := map[string][]ruleengine.RuleInput{
+	ruleInput := map[string][]ruleengine.Input{
 		"userRulesGroup": {
 			{
 				RuleName: "AgeShouldBeMoreThan",
@@ -88,7 +88,9 @@ func main() {
 		},
 	}
 
-	ruleEngine := ruleengine.New()
+	consoleExporter := ruleengine.ConsoleExporter{}
+
+	ruleEngine := ruleengine.New(consoleExporter)
 	ruleEngine.RegisterGroup(ruleGroup)
 	ruleEngine.RegisterGroup(ruleGroup2)
 	ruleEngine.Execute(ruleInput)
