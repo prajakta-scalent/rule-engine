@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
-
 	ruleengine "github.com/prajakta-scalent/rule-engine/pkg/rule-engine"
+	"github.com/prajakta-scalent/rule-engine/services"
 )
 
 func main() {
-	user := User{
+	user := services.User{
 		Id:  1,
 		Age: 18,
 	}
@@ -41,7 +40,13 @@ func main() {
 	ruleGroup := ruleengine.RuleGroup{
 		Name:                "userRulesGroup",
 		Rules:               rules,
-		ExecuteConcurrently: false,
+		ExecuteConcurrently: true,
+	}
+
+	ruleGroup2 := ruleengine.RuleGroup{
+		Name:                "userTestRulesGroup",
+		Rules:               rules,
+		ExecuteConcurrently: true,
 	}
 
 	ruleInput := map[string][]ruleengine.RuleInput{
@@ -63,19 +68,28 @@ func main() {
 				Value:    user,
 			},
 		},
+		"userTestRulesGroup": {
+			{
+				RuleName: "AgeShouldBeMoreThan",
+				Value:    20,
+			},
+			{
+				RuleName: "NameEqualTo",
+				Value:    "john",
+			},
+			{
+				RuleName: "BalanceMoreThan",
+				Value:    0.00,
+			},
+			{
+				RuleName: "APICallCheckAgeAllowed",
+				Value:    user,
+			},
+		},
 	}
 
 	ruleEngine := ruleengine.New()
 	ruleEngine.RegisterGroup(ruleGroup)
+	ruleEngine.RegisterGroup(ruleGroup2)
 	ruleEngine.Execute(ruleInput)
-}
-
-type User struct {
-	Id  int
-	Age int
-}
-
-func (u User) RuleCallback() bool {
-	fmt.Println("APICallCheckAgeAllowed call callback func called")
-	return true
 }

@@ -3,6 +3,7 @@ package ruleengine
 import (
 	"fmt"
 	"reflect"
+	"sync"
 
 	validatecondition "github.com/prajakta-scalent/rule-engine/pkg/rule-engine/validate-condition"
 )
@@ -33,21 +34,56 @@ func (r *RuleEngineImpl) RegisterGroup(ruleGroup RuleGroup) {
 }
 
 func (r *RuleEngineImpl) Execute(data map[string][]RuleInput) {
+	result := make([]Result, 0)
+
 	for _, ruleGroup := range r.ruleGroups {
 		if ruleGroup.ExecuteConcurrently {
-			r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
+			result = append(result, r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])...)
 		} else {
-			r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
+			result = append(result, r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])...)
 		}
 	}
+	fmt.Println(result)
 }
 
-// TODO: implement concurrent rule execution if specifed in value
-func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []RuleInput) {}
+func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []RuleInput) (result []Result) {
+	var wg sync.WaitGroup
+	resultCh := make(chan Result)
 
-func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []RuleInput) {
-	result := make([]Result, 0, len(ruleGroup.Rules))
+	for _, rule := range ruleGroup.Rules {
+		var response bool
+		dataValue := getRuleData(rule.Name, data)
+		wg.Add(1)
+		go func(rule Rule) {
+			defer wg.Done()
+			if rule.Condition == CONDITION_CALLBACK {
+				callbackMethod := reflect.ValueOf(dataValue).MethodByName(CALLBACK_FUNCTION_NAME)
+				callbackRes := callbackMethod.Call(nil)[0]
+				response = callbackRes.Interface().(bool)
+			} else {
+				response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
+			}
+			resultCh <- Result{
+				Rule:       rule,
+				InputValue: dataValue,
+				Outcome:    response,
+			}
+		}(rule)
+	}
 
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for res := range resultCh {
+		result = append(result, res)
+	}
+
+	return
+}
+
+func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []RuleInput) (result []Result) {
 	for _, rule := range ruleGroup.Rules {
 		var response bool
 		dataValue := getRuleData(rule.Name, data)
@@ -65,8 +101,7 @@ func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Ru
 			Outcome:    response,
 		})
 	}
-	//TO DO need to create interface to save result
-	fmt.Println("Final Result", result)
+	return
 }
 
 func getRuleData(name string, data []RuleInput) interface{} {
