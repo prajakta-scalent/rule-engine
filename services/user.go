@@ -7,7 +7,7 @@ type User struct {
 	Age int
 }
 
-func (u User) RuleCallback() bool {
+func (u User) RuleCallback() (status bool, err error) {
 	fmt.Println("APICallCheckAgeAllowed call callback func called")
-	return true
+	return true, nil
 }

@@ -40,6 +40,14 @@ func main() {
 		},
 	}
 
+	rules1 := []ruleengine.Rule{
+		{
+			Name:        "APICallCheckAgeAllowed",
+			Condition:   "callback",
+			IsMandatory: true,
+		},
+	}
+
 	ruleGroup := ruleengine.RuleGroup{
 		Name:                "userRulesGroup",
 		Rules:               rules,
@@ -48,7 +56,7 @@ func main() {
 
 	ruleGroup2 := ruleengine.RuleGroup{
 		Name:                "userTestRulesGroup",
-		Rules:               rules,
+		Rules:               rules1,
 		ExecuteConcurrently: true,
 	}
 
@@ -60,29 +68,17 @@ func main() {
 			},
 			{
 				RuleName: "NameEqualTo",
-				Value:    "john",
+				Value:    "john1",
 			},
 			{
 				RuleName: "BalanceMoreThan",
 				Value:    0.00,
-			},
-			{
-				RuleName: "APICallCheckAgeAllowed",
-				Value:    user,
 			},
 		},
 		"userTestRulesGroup": {
 			{
 				RuleName: "AgeShouldBeMoreThan",
 				Value:    20,
-			},
-			{
-				RuleName: "NameEqualTo",
-				Value:    "john",
-			},
-			{
-				RuleName: "BalanceMoreThan",
-				Value:    0.00,
 			},
 			{
 				RuleName: "APICallCheckAgeAllowed",
@@ -101,5 +97,5 @@ func main() {
 	ruleEngine.RegisterGroup(ruleGroup)
 	ruleEngine.RegisterGroup(ruleGroup2)
 	executionID, result, err := ruleEngine.Execute(ruleInput)
-	fmt.Println("\n\n###########################################", executionID, result, err)
+	fmt.Println("\n\nFinal Result: \n", executionID, result, err)
 }

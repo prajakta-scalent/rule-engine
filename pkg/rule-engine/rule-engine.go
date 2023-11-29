@@ -43,12 +43,12 @@ func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, r
 	executionID = uuid.NewString()
 
 	for _, ruleGroup := range r.ruleGroups {
-		var pass bool
+		pass := true
 		if ruleGroup.ExecuteConcurrently {
 			ruleResults := r.ExecuteRulesConcurrently(ruleGroup, data[ruleGroup.Name])
 			for _, ruleResult := range ruleResults {
-				if ruleResult.Error != nil && ruleResult.Outcome {
-					pass = true
+				if !ruleResult.Outcome && ruleResult.IsMandatory {
+					pass = false
 				}
 			}
 			result = append(result, RuleGroupResult{
@@ -59,8 +59,8 @@ func (r *RuleEngineImpl) Execute(data map[string][]Input) (executionID string, r
 		} else {
 			ruleResults := r.ExecuteRulesSequentially(ruleGroup, data[ruleGroup.Name])
 			for _, ruleResult := range ruleResults {
-				if ruleResult.Error != nil && ruleResult.Outcome {
-					pass = true
+				if !ruleResult.Outcome && ruleResult.IsMandatory {
+					pass = false
 				}
 			}
 			result = append(result, RuleGroupResult{
@@ -82,17 +82,41 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []In
 
 	for _, rule := range ruleGroup.Rules {
 		var response bool
-		dataValue := getRuleData(rule.Name, data)
+		var err error
+
+		dataValue, err := getRuleData(rule.Name, data)
+		if err != nil {
+			result = append(result, RuleResult{
+				Name:        rule.Name,
+				Condition:   rule.Condition,
+				IsMandatory: rule.IsMandatory,
+				MatchValue:  rule.MatchValue,
+				Value:       dataValue,
+				Outcome:     response,
+				Error:       err,
+			})
+			break
+		}
+
 		wg.Add(1)
 		go func(rule Rule) {
 			defer wg.Done()
 			if rule.Condition == CONDITION_CALLBACK {
 				callbackMethod := reflect.ValueOf(dataValue).MethodByName(CALLBACK_FUNCTION_NAME)
-				callbackRes := callbackMethod.Call(nil)[0]
-				response = callbackRes.Interface().(bool)
+				callbackRes := callbackMethod.Call(nil)
+
+				if len(callbackRes) > 0 {
+					response = callbackRes[0].Interface().(bool)
+					if callbackRes[1].Interface() != nil {
+						err = callbackRes[1].Interface().(error)
+					}
+				} else {
+					err = errors.New("error while fetching call back response")
+				}
 			} else {
-				response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
+				response, err = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
 			}
+
 			resultCh <- RuleResult{
 				Name:        rule.Name,
 				Condition:   rule.Condition,
@@ -100,6 +124,7 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []In
 				MatchValue:  rule.MatchValue,
 				Value:       dataValue,
 				Outcome:     response,
+				Error:       err,
 			}
 		}(rule)
 	}
@@ -119,16 +144,37 @@ func (r *RuleEngineImpl) ExecuteRulesConcurrently(ruleGroup RuleGroup, data []In
 func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []Input) (result []RuleResult) {
 	for _, rule := range ruleGroup.Rules {
 		var response bool
-		dataValue := getRuleData(rule.Name, data)
-		// TODO: Handle the condition of no input found for mandatory rule
+		var err error
+
+		dataValue, err := getRuleData(rule.Name, data)
+		if err != nil {
+			result = append(result, RuleResult{
+				Name:        rule.Name,
+				Condition:   rule.Condition,
+				IsMandatory: rule.IsMandatory,
+				MatchValue:  rule.MatchValue,
+				Value:       dataValue,
+				Outcome:     response,
+				Error:       err,
+			})
+			break
+		}
+
 		if rule.Condition == CONDITION_CALLBACK {
 			callbackMethod := reflect.ValueOf(dataValue).MethodByName(CALLBACK_FUNCTION_NAME)
-			callbackRes := callbackMethod.Call(nil)[0]
-			response = callbackRes.Interface().(bool)
+			callbackRes := callbackMethod.Call(nil)
+			if len(callbackRes) > 0 {
+				response = callbackRes[0].Interface().(bool)
+				if callbackRes[1].Interface() != nil {
+					err = callbackRes[1].Interface().(error)
+				}
+			} else {
+				err = errors.New("error while fetching call back response")
+			}
 		} else {
-			response = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
+			response, err = validatecondition.Validate(rule.Condition, rule.MatchValue, dataValue)
 		}
-		// TODO: Need to save error if any comes during execution
+
 		result = append(result, RuleResult{
 			Name:        rule.Name,
 			Condition:   rule.Condition,
@@ -136,16 +182,19 @@ func (r *RuleEngineImpl) ExecuteRulesSequentially(ruleGroup RuleGroup, data []In
 			MatchValue:  rule.MatchValue,
 			Value:       dataValue,
 			Outcome:     response,
+			Error:       err,
 		})
 	}
+
 	return result
 }
 
-func getRuleData(name string, data []Input) interface{} {
+func getRuleData(name string, data []Input) (interface{}, error) {
 	for _, dataVal := range data {
 		if name == dataVal.RuleName {
-			return dataVal.Value
+			return dataVal.Value, nil
 		}
 	}
-	return nil
+
+	return nil, errors.New("no data found for " + name)
 }
