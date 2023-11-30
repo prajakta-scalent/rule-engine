@@ -2,6 +2,7 @@ package ruleengine
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -13,7 +14,8 @@ const CALLBACK_FUNCTION_NAME = "RuleCallback"
 const CONDITION_CALLBACK = "callback"
 
 type RuleEngine interface {
-	RegisterGroup(name string, rules []Rule, executeConcurrently bool)
+	RegisterRule(filePath string) ([]Rule, error)
+	RegisterGroup(name string, rules []Rule, executeConcurrently bool) error
 	Execute(data interface{}) (bool, error)
 }
 
@@ -24,24 +26,37 @@ type FailedRules struct {
 type ruleEngineImpl struct {
 	ruleGroups     []RuleGroup
 	resultExporter ResultExporter
+	ruleImporter   RuleImporter
 }
 
-func New(ruleExporter ResultExporter) (*ruleEngineImpl, error) {
+func New(ruleExporter ResultExporter, ruleImporter RuleImporter) (*ruleEngineImpl, error) {
 	if ruleExporter == nil {
+		return nil, ErrRuleExporterEmpty
+	}
+	if ruleImporter == nil {
 		return nil, ErrRuleExporterEmpty
 	}
 	return &ruleEngineImpl{
 		resultExporter: ruleExporter,
+		ruleImporter:   ruleImporter,
 	}, nil
 }
 
-func (r *ruleEngineImpl) RegisterGroup(ruleGroup RuleGroup) error {
-	if ruleGroup.Name == "" {
-		return ErrRuleGroupNameEmpty
-	} else if len(ruleGroup.Rules) == 0 {
-		return ErrRulesEmpty
+func (r *ruleEngineImpl) RegisterRule(filepath string) ([]Rule, error) {
+	rules, err := r.ruleImporter.Import(filepath)
+	if err != nil {
+		fmt.Println("", err)
+		return nil, err
 	}
+	return rules, err
+}
 
+func (r *ruleEngineImpl) RegisterGroup(name string, rules []Rule, executeConcurrently bool) error {
+	ruleGroup := RuleGroup{
+		Name:                name,
+		Rules:               rules,
+		ExecuteConcurrently: executeConcurrently,
+	}
 	r.ruleGroups = append(r.ruleGroups, ruleGroup)
 
 	return nil
